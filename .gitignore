@@ -1,0 +1,10 @@
+# idea
+*.i??
+.idea/
+out/
+classes/
+*.log
+
+# OS X
+.DS_Store
+
