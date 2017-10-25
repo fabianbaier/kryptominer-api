@@ -1,30 +1,22 @@
 package config
 
-var (
-	Version  = "UNSET"
-	Revision = "UNSET"
-)
+import "flag"
 
 type Config struct {
-	DBURL		string
-	Version     string
-	Revision    string
-	HomePath    string
-	FlagVerbose bool
-	FlagJSONLog bool
-	FlagAPIPort int
+	DBURL     string
+	EthWallet string
+	Verbose   bool
+	Port      int
 }
 
-func (c *Config) setDefaults() {
-	c.DBURL = "127.0.0.1"
-	c.Version = Version
-	c.Revision = Revision
-	c.FlagVerbose = true
-	c.FlagJSONLog = false
-	c.FlagAPIPort = 8787
-}
+func Configuration() Config {
 
-func Configuration() (c Config) {
-	c.setDefaults()
+	c := Config{}
+	flag.IntVar(&c.Port, "port", 8787, "port to listen on.")
+	flag.StringVar(&c.DBURL, "db", "127.0.0.1:27017", "mongodb url to connect to.")
+	flag.StringVar(&c.EthWallet, "ethwallet", "", "eth addr to scrape.")
+	flag.BoolVar(&c.Verbose, "v", false, "verbose mode.")
+
+	flag.Parse()
 	return c
 }

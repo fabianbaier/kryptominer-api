@@ -2,6 +2,8 @@ package core
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/fabianbaier/kryptominer-api/config"
 	"github.com/fabianbaier/kryptominer-api/storage"
 	"github.com/gin-gonic/gin"
@@ -9,25 +11,50 @@ import (
 )
 
 type updateETHWalletRequest struct {
-	ActiveWorkers   uint64  `json:"activeWorkers"`
+	ActiveWorkers   int64   `json:"activeWorkers"`
 	AverageHashrate float64 `json:"averageHashrate"`
-	Balance         float64 `json:"balance"`
+	Balance         int64   `json:"balance"`
 	Time            int64   `json:"time"`
 }
 
 type apiResponse struct {
-	Status string
-	Message string
+	Status  string
+	Message string `json:"message,omitempty"`
 }
 
 func Start(appConfig config.Config) {
-	port := fmt.Sprintf(":%d", appConfig.FlagAPIPort)
+	port := fmt.Sprintf(":%d", appConfig.Port)
 	logrus.Infof("Starting Kryptominer API on 0.0.0.0%s", port)
-	r := gin.Default()
+
+	ec := NewEthermineClient(appConfig.EthWallet)
 	db, err := storage.GetConnection(appConfig.DBURL)
 	if err != nil {
 
 	}
+
+	// setup ticker for fetching Ethermine data
+	go func() {
+		ticker := time.NewTicker(time.Second * 91)
+		for _ = range ticker.C {
+			res, err := ec.FetchCurrentStats()
+			if err != nil {
+				logrus.Warningf("failed fetching current stats: %s", err)
+			}
+			w := storage.Wallet{
+				ActiveWorkers:   res.Data.ActiveWorkers,
+				AverageHashrate: res.Data.AverageHashrate,
+				Time:            res.Data.Time,
+				Balance:         res.Data.Balance,
+				Address:         appConfig.EthWallet,
+			}
+			err = db.InsertWalletState(w)
+			if err != nil {
+				logrus.Warningf("failed saving wallet state to db: %s", err)
+			}
+		}
+	}()
+
+	r := gin.Default()
 
 	r.Use(func(c *gin.Context) {
 		c.Set("store", db)
@@ -69,7 +96,7 @@ func updateETHWalletHandler(c *gin.Context) {
 	addr := c.Param("address")
 	payload := storage.Wallet{
 		ActiveWorkers:   req.ActiveWorkers,
-		Address: addr,
+		Address:         addr,
 		AverageHashrate: req.AverageHashrate,
 		Time:            req.Time,
 		Balance:         req.Balance,
@@ -89,5 +116,7 @@ func updateETHWalletHandler(c *gin.Context) {
 		c.JSON(500, message)
 		return
 	}
-	c.JSON(200, payload)
+	c.JSON(201, &apiResponse{
+		Status: "OK",
+	})
 }
